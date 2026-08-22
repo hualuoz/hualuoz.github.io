@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070707">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23070707'/%3E%3Cpath d='M6 9h20v14H6z' fill='none' stroke='%23f4c900' stroke-width='2'/%3E%3Cpath d='M11 13v6m5-6v6m5-6v6' stroke='%23f4c900' stroke-width='2'/%3E%3C/svg%3E">
+  <title>Xiaomi SU7 Ultra — Born to Outrun</title>
+  <style>
+    :root {
+      --bg: #070707;
+      --ink: #f6f4ed;
+      --muted: rgba(246, 244, 237, .58);
+      --line: rgba(246, 244, 237, .2);
+      --yellow: #f4c900;
+      --yellow-soft: #ffe676;
+      --red: #ff3149;
+      --ease: cubic-bezier(.2, .75, .15, 1);
+      --reveal-ease: cubic-bezier(.22, 1, .36, 1);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--bg); }
+    body {
+      color: var(--ink);
+      font-family: Inter, "SF Pro Display", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      cursor: default;
+    }
+    button { font: inherit; }
+    button, [role="button"] { cursor: pointer; }
+
+    .stage { position: fixed; inset: 0; isolation: isolate; background: #000; }
+    .media, .still {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .media { z-index: 1; background: #000; transform: scale(1.012); transition: transform 1.25s var(--ease), filter 1.25s var(--ease); }
+    .still {
+      z-index: 2;
+      opacity: 0;
+      transform: scale(1.018);
+      filter: saturate(1.02) contrast(1.03);
+      transition: opacity .9s var(--ease), transform 1.8s var(--ease);
+      pointer-events: none;
+    }
+    .still.is-visible { opacity: 1; transform: scale(1); }
+    .stage.is-transitioning .media { transform: scale(1.025); filter: brightness(.76); }
+    .stage.is-playing .media { transform: scale(1); filter: brightness(1); }
+
+    .vignette, .grain, .shade, .flash, .speed-lines { position: absolute; inset: 0; pointer-events: none; }
+    .vignette {
+      z-index: 3;
+      background:
+        linear-gradient(90deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,.05) 32%, transparent 56%),
+        linear-gradient(0deg, rgba(0,0,0,.58) 0%, transparent 36%),
+        radial-gradient(circle at 50% 45%, transparent 46%, rgba(0,0,0,.34) 105%);
+    }
+    .shade {
+      z-index: 4;
+      background: linear-gradient(180deg, rgba(0,0,0,.38), transparent 17%, transparent 80%, rgba(0,0,0,.28));
+    }
+    .grain {
+      z-index: 5;
+      opacity: .06;
+      mix-blend-mode: soft-light;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+      animation: grain .18s steps(2) infinite;
+    }
+    @keyframes grain {
+      0% { transform: translate(0, 0); }
+      25% { transform: translate(-2%, 1%); }
+      50% { transform: translate(1%, -2%); }
+      75% { transform: translate(2%, 2%); }
+      100% { transform: translate(-1%, -1%); }
+    }
+    .flash { z-index: 12; opacity: 0; background: radial-gradient(circle at 50% 45%, rgba(244,201,0,.12), rgba(0,0,0,.86) 72%); }
+    .flash.is-active { animation: soft-cut .9s var(--ease); }
+    @keyframes soft-cut { 0% { opacity: 0; } 38% { opacity: .42; } 100% { opacity: 0; } }
+
+    .speed-lines {
+      z-index: 6;
+      opacity: 0;
+      background: repeating-linear-gradient(98deg, transparent 0 9%, rgba(255,255,255,.2) 9.2%, transparent 9.45% 16%);
+      transform: skewX(-12deg) scale(1.2);
+      transition: opacity .3s ease;
+    }
+    .stage.is-playing[data-station="velocity"] .speed-lines { opacity: .1; animation: rush .42s linear infinite; }
+    @keyframes rush { to { transform: translateX(-7%) skewX(-12deg) scale(1.2); } }
+
+    .corner-mask { position: absolute; z-index: 7; pointer-events: none; }
+    .corner-mask.top {
+      top: 0; left: 0; width: 21rem; height: 7.5rem;
+      background: radial-gradient(ellipse at 0 0, rgba(0,0,0,.98) 0 42%, rgba(0,0,0,.68) 62%, transparent 79%);
+    }
+    .corner-mask.bottom {
+      right: 0; bottom: 0; width: 22rem; height: 8rem;
+      background: radial-gradient(ellipse at 100% 100%, rgba(0,0,0,.98) 0 44%, rgba(0,0,0,.72) 61%, transparent 80%);
+    }
+
+    .hud { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
+    .brand {
+      position: absolute;
+      top: 1.5rem;
+      left: 2rem;
+      display: flex;
+      align-items: center;
+      gap: .9rem;
+      letter-spacing: .13em;
+      font-size: .72rem;
+      font-weight: 750;
+    }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 2.35rem;
+      height: 2.35rem;
+      border: 1px solid rgba(244,201,0,.7);
+      color: var(--yellow);
+      font-size: .66rem;
+      letter-spacing: -.03em;
+    }
+    .brand-copy small { display: block; margin-top: .26rem; color: var(--muted); font-size: .52rem; letter-spacing: .22em; font-weight: 550; }
+
+    .top-actions { position: absolute; top: 1.5rem; right: 2rem; display: flex; align-items: center; gap: .6rem; pointer-events: auto; }
+    .icon-button {
+      width: 2.6rem;
+      height: 2.6rem;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      background: rgba(8,8,8,.52);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      transition: border-color .25s ease, color .25s ease, background .25s ease;
+    }
+    .icon-button:hover, .icon-button:focus-visible { color: #111; background: var(--yellow); border-color: var(--yellow); outline: none; }
+
+    .caption {
+      position: absolute;
+      left: clamp(1.5rem, 6vw, 7rem);
+      bottom: clamp(7rem, 14vh, 10rem);
+      width: min(57rem, calc(100vw - 13rem));
+      opacity: 0;
+      transform: translateY(1rem);
+      transition: opacity .85s var(--reveal-ease), transform 1s var(--reveal-ease);
+    }
+    .caption.is-visible { opacity: 1; transform: translateY(0); }
+    .caption-kicker, .caption-title, .caption-cn {
+      opacity: 0;
+      transform: translateY(.75rem);
+      transition: opacity .7s var(--reveal-ease), transform .85s var(--reveal-ease);
+    }
+    .caption.is-visible .caption-kicker,
+    .caption.is-visible .caption-title,
+    .caption.is-visible .caption-cn { opacity: 1; transform: translateY(0); }
+    .caption.is-visible .caption-title { transition-delay: .07s; }
+    .caption.is-visible .caption-cn { transition-delay: .15s; }
+    .caption-kicker { display: flex; align-items: center; gap: .7rem; margin-bottom: .85rem; color: var(--yellow); font-size: .64rem; font-weight: 750; letter-spacing: .2em; text-transform: uppercase; }
+    .caption-kicker::before { content: ""; width: 1.8rem; height: 1px; background: currentColor; }
+    .caption-title {
+      margin: 0;
+      max-width: 11ch;
+      color: var(--ink);
+      font-size: clamp(2.65rem, 4.6vw, 4.9rem);
+      line-height: .88;
+      letter-spacing: -.045em;
+      font-weight: 850;
+      text-transform: uppercase;
+      text-wrap: balance;
+      text-shadow: 0 8px 44px rgba(0,0,0,.48);
+    }
+    .caption-cn { margin: 1.15rem 0 0; color: rgba(255,255,255,.76); font-size: clamp(.86rem, .95vw, 1.02rem); letter-spacing: .1em; line-height: 1.7; }
+    .caption-index { display: none; }
+
+    .caption[data-layout="right"] { left: auto; right: clamp(5rem, 9vw, 10rem); width: min(48rem, calc(100vw - 11rem)); text-align: right; }
+    .caption[data-layout="right"] .caption-kicker { justify-content: flex-end; }
+    .caption[data-layout="right"] .caption-index { right: auto; left: 0; }
+    .caption[data-layout="finale"] { bottom: 12vh; }
+    .caption[data-layout="finale"] .caption-title { color: var(--ink); }
+
+    .stage[data-station="arrival"] .caption {
+      top: clamp(7rem, 14vh, 9rem);
+      bottom: auto;
+      width: min(36rem, calc(100vw - 12rem));
+    }
+    .stage[data-station="light"] .caption {
+      left: clamp(1.5rem, 6vw, 7rem);
+      right: auto;
+      bottom: clamp(7rem, 13vh, 9rem);
+      width: min(34rem, calc(100vw - 12rem));
+      text-align: left;
+    }
+    .stage[data-station="light"] .caption-kicker { justify-content: flex-start; }
+    .stage[data-station="velocity"] .caption {
+      right: clamp(5rem, 8vw, 9rem);
+      bottom: clamp(7rem, 13vh, 9rem);
+      width: min(36rem, calc(100vw - 12rem));
+    }
+    .stage[data-station="velocity"] .caption-title { font-size: clamp(2.55rem, 4.25vw, 4.55rem); }
+    .stage[data-station="finale"] .caption {
+      top: clamp(7.5rem, 15vh, 9.5rem);
+      bottom: auto;
+      width: min(42rem, calc(100vw - 12rem));
+    }
+    .stage[data-station="finale"] .caption-title { max-width: 13ch; font-size: clamp(2.65rem, 4.35vw, 4.7rem); }
+    .rail { position: absolute; right: 2.15rem; top: 50%; transform: translateY(-50%); display: grid; gap: 1.05rem; opacity: .58; transition: opacity .3s ease; pointer-events: auto; }
+    .rail:hover, .rail:focus-within { opacity: 1; }
+    .rail-button { display: flex; align-items: center; justify-content: flex-end; gap: .7rem; padding: .35rem 0; color: rgba(255,255,255,.34); background: transparent; border: 0; }
+    .rail-label { opacity: 0; transform: translateX(.4rem); font-size: .6rem; letter-spacing: .16em; transition: .25s ease; }
+    .rail-dot { width: 1.6rem; height: 1px; background: currentColor; transition: width .3s var(--ease), color .3s ease, box-shadow .3s ease; }
+    .rail-button:hover .rail-label, .rail-button:focus-visible .rail-label { opacity: 1; transform: translateX(0); }
+    .rail-button.is-active { color: var(--yellow); }
+    .rail-button.is-active .rail-dot { width: 2.4rem; box-shadow: 0 0 8px rgba(244,201,0,.5); }
+
+    .chapter-panel {
+      position: absolute;
+      right: 2rem;
+      bottom: 1.5rem;
+      width: 18rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1rem;
+      align-items: end;
+      padding: .75rem 0 0;
+      background: transparent;
+      border-top: 1px solid rgba(255,255,255,.22);
+      pointer-events: auto;
+    }
+    .chapter-number { color: var(--ink); font-size: 1rem; line-height: 1; font-weight: 700; }
+    .chapter-meta { color: rgba(255,255,255,.5); font-size: .54rem; letter-spacing: .16em; text-transform: uppercase; }
+    .chapter-progress { grid-column: 1 / -1; height: 1px; background: rgba(255,255,255,.14); overflow: hidden; }
+    .chapter-progress span { display: block; width: 25%; height: 100%; background: var(--yellow); transition: width .75s var(--reveal-ease); }
+    .journey-action {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: .5rem 0 0;
+      color: rgba(255,255,255,.78);
+      background: transparent;
+      border: 0;
+      font-size: .6rem;
+      letter-spacing: .13em;
+      text-align: left;
+      transition: color .25s ease;
+    }
+    .journey-action span:last-child { color: var(--yellow); font-size: .9rem; transition: transform .3s var(--reveal-ease); }
+    .journey-action:hover, .journey-action:focus-visible { color: #fff; outline: none; }
+    .journey-action:hover span:last-child, .journey-action:focus-visible span:last-child { transform: translateY(.25rem); }
+
+    .controls { position: absolute; left: 2rem; bottom: 1.55rem; display: flex; align-items: center; gap: .7rem; color: rgba(255,255,255,.36); font-size: .56rem; letter-spacing: .13em; opacity: .65; transition: opacity .25s ease; pointer-events: auto; }
+    .controls:hover, .controls:focus-within { opacity: 1; }
+    .control-button { color: inherit; background: none; border: 0; padding: .55rem; transition: color .2s ease; }
+    .control-button:hover, .control-button:focus-visible { color: var(--yellow); outline: none; }
+    .control-divider { width: 2.5rem; height: 1px; background: var(--line); }
+
+    .loader {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      background: #070707;
+      transition: opacity .9s var(--ease), visibility .9s;
+    }
+    .loader.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .loader::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 68% 45%, rgba(244,201,0,.11), transparent 31%); }
+    .loader-inner { position: relative; width: min(75rem, calc(100vw - 3rem)); }
+    .loader-overline { color: var(--yellow); font-size: .65rem; font-weight: 800; letter-spacing: .3em; }
+    .loader-title { margin: 1.2rem 0 2.5rem; font-size: clamp(4.5rem, 15vw, 14rem); line-height: .72; letter-spacing: -.085em; font-weight: 950; }
+    .loader-title span { color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,.3); }
+    .loader-row { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2rem; }
+    .loader-track { height: 2px; background: rgba(255,255,255,.15); overflow: hidden; }
+    .loader-bar { height: 100%; width: 0; background: var(--yellow); box-shadow: 0 0 16px var(--yellow); transition: width .35s ease; }
+    .loader-status { margin-top: .85rem; color: var(--muted); font-size: .62rem; letter-spacing: .16em; }
+    .enter-button {
+      min-width: 9rem;
+      padding: .9rem 1.2rem;
+      color: #111;
+      background: var(--yellow);
+      border: 1px solid var(--yellow);
+      font-size: .64rem;
+      font-weight: 850;
+      letter-spacing: .17em;
+      text-transform: uppercase;
+      opacity: .35;
+      transform: translateY(.6rem);
+      pointer-events: none;
+      transition: opacity .35s ease, transform .35s ease, background .2s ease, color .2s ease;
+    }
+    .enter-button.is-ready { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .enter-button:hover, .enter-button:focus-visible { color: var(--yellow); background: transparent; outline: none; }
+
+    .cursor { position: fixed; z-index: 200; width: .65rem; height: .65rem; border-radius: 50%; background: var(--yellow); pointer-events: none; transform: translate(-50%,-50%); mix-blend-mode: difference; transition: width .16s ease, height .16s ease; }
+    .cursor.is-over { width: 2.2rem; height: 2.2rem; background: transparent; border: 1px solid var(--yellow); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 760px) {
+      body { cursor: auto; }
+      button, [role="button"] { cursor: pointer; }
+      .cursor, .rail, .controls, .caption-index { display: none; }
+      .brand { left: 1rem; top: 1rem; }
+      .top-actions { top: 1rem; right: 1rem; }
+      .caption, .caption[data-layout="right"],
+      .stage[data-station] .caption { left: 1rem; right: 1rem; top: auto; bottom: 7rem; width: auto; text-align: left; }
+      .caption[data-layout="right"] .caption-kicker { justify-content: flex-start; }
+      .caption-title,
+      .stage[data-station] .caption-title { max-width: 11ch; font-size: clamp(2.55rem, 12vw, 4rem); line-height: .9; }
+      .chapter-panel { left: 1rem; right: 1rem; bottom: 1rem; width: auto; }
+      .loader-title { font-size: clamp(4rem, 24vw, 8rem); }
+      .loader-row { grid-template-columns: 1fr; }
+      .enter-button { width: 100%; }
+      .corner-mask.top { width: 15rem; }
+      .corner-mask.bottom { width: 100%; }
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      body, button, [role="button"] { cursor: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+      .grain, .speed-lines { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" id="stage" data-station="arrival" aria-label="Xiaomi SU7 Ultra 电影式产品展示">
+    <video class="media" id="film" preload="auto" playsinline muted poster="assets/stills/shot-01-arrival.png">
+      <source src="assets/video/su7-ultra-15s-clean.mp4" type="video/mp4">
+    </video>
+    <img class="still" id="still" src="assets/stills/shot-01-arrival.png" alt="黄色高性能轿车在暗色湿地上的电影感画面">
+
+    <div class="vignette"></div>
+    <div class="shade"></div>
+    <div class="speed-lines"></div>
+    <div class="grain"></div>
+    <div class="corner-mask top"></div>
+    <div class="corner-mask bottom"></div>
+    <div class="flash" id="flash"></div>
+
+    <div class="hud">
+      <header class="brand" aria-label="Xiaomi EV Ultra">
+        <span class="brand-mark">MI</span>
+        <span class="brand-copy">XIAOMI EV<small>ULTRA PERFORMANCE</small></span>
+      </header>
+
+      <div class="top-actions">
+        <button class="icon-button" id="sound" type="button" aria-label="开启声音" aria-pressed="false">⌁</button>
+      </div>
+
+      <section class="caption" id="caption" data-layout="left" aria-live="polite">
+        <div class="caption-kicker" id="kicker">Chapter 01 · Arrival</div>
+        <h1 class="caption-title" id="title">Ultra Has Arrived</h1>
+        <p class="caption-cn" id="copy">性能，不再隐藏。</p>
+        <div class="caption-index" id="captionIndex" aria-hidden="true">01</div>
+      </section>
+
+      <nav class="rail" id="rail" aria-label="章节导航"></nav>
+
+      <div class="chapter-panel" aria-label="当前章节与下一步">
+        <div class="chapter-number" id="chapterNumber">01</div>
+        <div class="chapter-meta" id="chapterMeta">Arrival / 04</div>
+        <div class="chapter-progress"><span id="chapterProgress"></span></div>
+        <button class="journey-action" id="next" type="button">
+          <span id="journeyLabel">继续观看 · VISION</span><span aria-hidden="true">↓</span>
+        </button>
+      </div>
+
+      <div class="controls" aria-label="播放控制">
+        <button class="control-button" id="prev" type="button">↑ 上一幕</button>
+        <span class="control-divider"></span>
+        <span>滚轮 / 方向键</span>
+      </div>
+    </div>
+    <p class="sr-only" id="announcer" aria-live="assertive"></p>
+  </main>
+
+  <section class="loader" id="loader" aria-label="素材加载">
+    <div class="loader-inner">
+      <div class="loader-overline">XIAOMI EV / DIGITAL PREMIERE</div>
+      <div class="loader-title">SU7 <span>ULTRA</span></div>
+      <div class="loader-row">
+        <div>
+          <div class="loader-track"><div class="loader-bar" id="loaderBar"></div></div>
+          <div class="loader-status" id="loaderStatus">LOADING CINEMATIC ASSETS — 00%</div>
+        </div>
+        <button class="enter-button" id="enter" type="button">进入体验</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="cursor" id="cursor" aria-hidden="true"></div>
+
+  <script>
+    const STATIONS = [
+      { id: 'arrival', label: 'ARRIVAL', kicker: 'CHAPTER 01 · ARRIVAL', title: 'ULTRA HAS ARRIVED', copy: '性能，不再隐藏。', start: 0, end: 2.75, still: 'assets/stills/shot-01-arrival.png', layout: 'left' },
+      { id: 'light', label: 'VISION', kicker: 'CHAPTER 02 · VISION', title: 'LIGHT UP THE DARK', copy: '每一道光，都为速度而生。', start: 2.75, end: 5.9, still: 'assets/stills/shot-02-headlight.png', layout: 'right' },
+      { id: 'velocity', label: 'VELOCITY', kicker: 'CHAPTER 03 · VELOCITY', title: 'UNLEASH THE FORCE', copy: '瞬间释放，持续进化。', start: 5.9, end: 10.4, still: 'assets/stills/shot-03-velocity.png', layout: 'right' },
+      { id: 'finale', label: 'ULTRA', kicker: 'CHAPTER 04 · ULTRA', title: 'XIAOMI SU7 ULTRA', copy: '巅峰性能，由此登场。', start: 10.4, end: 14.68, still: 'assets/stills/shot-04-finale.png', layout: 'finale' }
+    ];
+
+    const stage = document.querySelector('#stage');
+    const film = document.querySelector('#film');
+    const still = document.querySelector('#still');
+    const caption = document.querySelector('#caption');
+    const kicker = document.querySelector('#kicker');
+    const title = document.querySelector('#title');
+    const copy = document.querySelector('#copy');
+    const captionIndex = document.querySelector('#captionIndex');
+    const chapterNumber = document.querySelector('#chapterNumber');
+    const chapterMeta = document.querySelector('#chapterMeta');
+    const chapterProgress = document.querySelector('#chapterProgress');
+    const rail = document.querySelector('#rail');
+    const flash = document.querySelector('#flash');
+    const soundButton = document.querySelector('#sound');
+    const nextButton = document.querySelector('#next');
+    const journeyLabel = document.querySelector('#journeyLabel');
+    const announcer = document.querySelector('#announcer');
+    const loader = document.querySelector('#loader');
+    const loaderBar = document.querySelector('#loaderBar');
+    const loaderStatus = document.querySelector('#loaderStatus');
+    const enterButton = document.querySelector('#enter');
+    const cursor = document.querySelector('#cursor');
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let current = -1;
+    let playing = false;
+    let entered = false;
+    let wheelLock = false;
+    let wheelTimer = null;
+    let animationFrame = null;
+    let captionTimer = null;
+    let playToken = 0;
+    let soundOn = false;
+    let loadedAssets = 0;
+    const assetTotal = STATIONS.length + 1;
+
+    STATIONS.forEach((station, index) => {
+      const button = document.createElement('button');
+      button.className = 'rail-button';
+      button.type = 'button';
+      button.setAttribute('aria-label', `前往第 ${index + 1} 章：${station.label}`);
+      button.innerHTML = `<span class="rail-label">${station.label}</span><span class="rail-dot"></span>`;
+      button.addEventListener('click', () => settleStation(index, true));
+      rail.append(button);
+    });
+
+    function updateLoadProgress() {
+      loadedAssets = Math.min(loadedAssets + 1, assetTotal);
+      const percent = Math.round((loadedAssets / assetTotal) * 100);
+      loaderBar.style.width = `${percent}%`;
+      loaderStatus.textContent = `LOADING CINEMATIC ASSETS — ${String(percent).padStart(2, '0')}%`;
+      if (loadedAssets === assetTotal) {
+        enterButton.classList.add('is-ready');
+        loaderStatus.textContent = '准备就绪 — 使用滚轮或方向键浏览';
+      }
+    }
+
+    STATIONS.forEach(({ still: source }) => {
+      const image = new Image();
+      image.onload = updateLoadProgress;
+      image.onerror = updateLoadProgress;
+      image.src = source;
+    });
+    if (film.readyState >= 3) updateLoadProgress();
+    else {
+      film.addEventListener('canplay', updateLoadProgress, { once: true });
+      film.addEventListener('error', updateLoadProgress, { once: true });
+    }
+
+    function impact() {
+      flash.classList.remove('is-active');
+      void flash.offsetWidth;
+      flash.classList.add('is-active');
+    }
+
+    function renderStation(index) {
+      const station = STATIONS[index];
+      const number = String(index + 1).padStart(2, '0');
+      stage.dataset.station = station.id;
+      kicker.textContent = station.kicker;
+      title.textContent = station.title;
+      copy.textContent = station.copy;
+      captionIndex.textContent = number;
+      caption.dataset.layout = station.layout;
+      chapterNumber.textContent = number;
+      chapterMeta.textContent = `${station.label} / 04`;
+      chapterProgress.style.width = `${((index + 1) / STATIONS.length) * 100}%`;
+      const isFinale = index === STATIONS.length - 1;
+      journeyLabel.textContent = isFinale ? '重新观看' : `继续观看 · ${STATIONS[index + 1].label}`;
+      nextButton.querySelector('span:last-child').textContent = isFinale ? '↻' : '↓';
+      [...rail.children].forEach((button, i) => button.classList.toggle('is-active', i === index));
+      announcer.textContent = `第 ${index + 1} 章，${station.title}。${station.copy}`;
+    }
+
+    function settleStation(index, direct = false) {
+      playToken += 1;
+      cancelAnimationFrame(animationFrame);
+      playing = false;
+      stage.classList.remove('is-playing');
+      stage.classList.remove('is-transitioning');
+      film.pause();
+      current = Math.max(0, Math.min(index, STATIONS.length - 1));
+      const station = STATIONS[current];
+      if (Math.abs(film.currentTime - station.end) > .08) film.currentTime = station.end;
+      renderStation(current);
+      clearTimeout(captionTimer);
+      caption.classList.remove('is-visible');
+      still.classList.remove('is-visible');
+      if (direct) impact();
+      const revealCaption = () => {
+        still.classList.add('is-visible');
+        clearTimeout(captionTimer);
+        captionTimer = setTimeout(() => caption.classList.add('is-visible'), reducedMotion ? 0 : 240);
+      };
+      still.onload = revealCaption;
+      still.src = station.still;
+      if (still.complete) revealCaption();
+    }
+
+    async function playStation(index) {
+      if (!entered || playing || index < 0 || index >= STATIONS.length) return;
+      if (reducedMotion) {
+        settleStation(index, true);
+        return;
+      }
+      const station = STATIONS[index];
+      const token = ++playToken;
+      playing = true;
+      current = index;
+      renderStation(index);
+      clearTimeout(captionTimer);
+      stage.classList.add('is-playing');
+      stage.classList.add('is-transitioning');
+      caption.classList.remove('is-visible');
+      film.pause();
+      if (Math.abs(film.currentTime - station.start) > .08 || film.ended) {
+        const seeked = new Promise(resolve => {
+          const finishSeek = () => resolve();
+          film.addEventListener('seeked', finishSeek, { once: true });
+          setTimeout(finishSeek, 1200);
+        });
+        film.currentTime = station.start;
+        await seeked;
+      }
+      if (token !== playToken) return;
+      film.muted = !soundOn;
+      const playPromise = film.play();
+      if (playPromise) playPromise.catch(() => { soundOn = false; film.muted = true; film.play(); });
+      requestAnimationFrame(() => {
+        still.classList.remove('is-visible');
+        setTimeout(() => stage.classList.remove('is-transitioning'), 900);
+      });
+
+      const monitor = () => {
+        if (!playing) return;
+        if (film.currentTime >= station.end || film.ended) {
+          settleStation(index);
+          return;
+        }
+        animationFrame = requestAnimationFrame(monitor);
+      };
+      animationFrame = requestAnimationFrame(monitor);
+    }
+
+    function nextStation() {
+      if (playing) return;
+      if (current < STATIONS.length - 1) playStation(current + 1);
+      else playStation(0);
+    }
+
+    function previousStation() {
+      if (playing) return;
+      if (current > 0) settleStation(current - 1, true);
+    }
+
+    function enterExperience() {
+      if (!enterButton.classList.contains('is-ready')) return;
+      entered = true;
+      loader.classList.add('is-hidden');
+      playStation(0);
+    }
+
+    enterButton.addEventListener('click', enterExperience);
+    nextButton.addEventListener('click', nextStation);
+    document.querySelector('#prev').addEventListener('click', previousStation);
+
+    addEventListener('wheel', event => {
+      if (!entered || playing) return;
+      clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(() => { wheelLock = false; }, 420);
+      if (wheelLock || Math.abs(event.deltaY) < 8) return;
+      wheelLock = true;
+      if (event.deltaY > 0) nextStation();
+      else previousStation();
+    }, { passive: true });
+
+    addEventListener('keydown', event => {
+      if (!entered && event.key === 'Enter') { enterExperience(); return; }
+      if (['ArrowDown', 'PageDown', ' ', 'Enter'].includes(event.key)) { event.preventDefault(); nextStation(); }
+      if (['ArrowUp', 'PageUp'].includes(event.key)) { event.preventDefault(); previousStation(); }
+    });
+
+    soundButton.addEventListener('click', () => {
+      soundOn = !soundOn;
+      film.muted = !soundOn;
+      soundButton.setAttribute('aria-pressed', String(soundOn));
+      soundButton.setAttribute('aria-label', soundOn ? '关闭声音' : '开启声音');
+      soundButton.textContent = soundOn ? '◖' : '⌁';
+    });
+
+    addEventListener('pointermove', event => {
+      cursor.style.left = `${event.clientX}px`;
+      cursor.style.top = `${event.clientY}px`;
+    });
+    document.querySelectorAll('button').forEach(button => {
+      button.addEventListener('pointerenter', () => cursor.classList.add('is-over'));
+      button.addEventListener('pointerleave', () => cursor.classList.remove('is-over'));
+    });
+  </script>
+</body>
+</html>
